@@ -1,0 +1,64 @@
+diff --git a/unix/syscall_linux.go b/unix/syscall_linux.go
+index 6d10c9c..80a01e9 100644
+--- a/unix/syscall_linux.go
++++ b/unix/syscall_linux.go
+@@ -416,6 +416,30 @@ func (sa *SockaddrHCI) sockaddr() (unsafe.Pointer, _Socklen, error) {
+ 	return unsafe.Pointer(&sa.raw), SizeofSockaddrHCI, nil
+ }
+ 
++type SockaddrCAN struct {
++	Ifindex int
++	RxID    uint32
++	TxID    uint32
++	raw     RawSockaddrCAN
++}
++
++func (sa *SockaddrCAN) sockaddr() (unsafe.Pointer, _Socklen, error) {
++	if sa.Ifindex < 0 || sa.Ifindex > 0x7fffffff {
++		return nil, 0, EINVAL
++	}
++	sa.raw.Family = AF_CAN
++	sa.raw.Ifindex = int32(sa.Ifindex)
++	rx := (*[4]byte)(unsafe.Pointer(&sa.RxID))
++	for i := uintptr(0); i < 4; i++ {
++		sa.raw.Addr[i] = rx[i]
++	}
++	tx := (*[4]byte)(unsafe.Pointer(&sa.TxID))
++	for i := uintptr(0); i < 4; i++ {
++		sa.raw.Addr[i+4] = tx[i]
++	}
++	return unsafe.Pointer(&sa.raw), SizeofSockaddrCAN, nil
++}
++
+ func anyToSockaddr(rsa *RawSockaddrAny) (Sockaddr, error) {
+ 	switch rsa.Addr.Family {
+ 	case AF_NETLINK:
+diff --git a/unix/types_linux.go b/unix/types_linux.go
+index 7dea79a..a0e455b 100644
+--- a/unix/types_linux.go
++++ b/unix/types_linux.go
+@@ -58,6 +58,7 @@ package unix
+ #include <utime.h>
+ #include <bluetooth/bluetooth.h>
+ #include <bluetooth/hci.h>
++#include <linux/can.h>
+ 
+ #ifdef TCSETS2
+ // On systems that have "struct termios2" use this as type Termios.
+@@ -215,6 +216,8 @@ type RawSockaddrNetlink C.struct_sockaddr_nl
+ 
+ type RawSockaddrHCI C.struct_sockaddr_hci
+ 
++type RawSockaddrCAN C.struct_sockaddr_can
++
+ type RawSockaddr C.struct_sockaddr
+ 
+ type RawSockaddrAny C.struct_sockaddr_any
+@@ -255,6 +258,7 @@ const (
+ 	SizeofSockaddrLinklayer = C.sizeof_struct_sockaddr_ll
+ 	SizeofSockaddrNetlink   = C.sizeof_struct_sockaddr_nl
+ 	SizeofSockaddrHCI       = C.sizeof_struct_sockaddr_hci
++	SizeofSockaddrCAN       = C.sizeof_struct_sockaddr_can
+ 	SizeofLinger            = C.sizeof_struct_linger
+ 	SizeofIPMreq            = C.sizeof_struct_ip_mreq
+ 	SizeofIPMreqn           = C.sizeof_struct_ip_mreqn
